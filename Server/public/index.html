@@ -1,0 +1,973 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Switch Installer · eShop</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@400;500;700&display=swap" rel="stylesheet">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%230b0b0b'/%3E%3Crect x='10' y='18' width='44' height='28' rx='4' fill='%23e60012'/%3E%3Ccircle cx='24' cy='32' r='5' fill='%23fff'/%3E%3Cpath d='M38 28v8M34 32h8' stroke='%23fff' stroke-width='3' stroke-linecap='round'/%3E%3C/svg%3E">
+<style>
+  :root {
+    --bg: #0b0b0b;
+    --bg-elevated: #141414;
+    --surface: #1a1a1a;
+    --surface-2: #242424;
+    --surface-3: #2e2e2e;
+    --red: #e60012;
+    --red-dim: rgba(230, 0, 18, 0.15);
+    --red-glow: rgba(230, 0, 18, 0.35);
+    --text: #f5f5f5;
+    --text-muted: #a0a0a0;
+    --text-dim: #6e6e6e;
+    --border: rgba(255, 255, 255, 0.08);
+    --radius: 12px;
+    --radius-sm: 8px;
+    --shadow: 0 10px 40px rgba(0,0,0,0.6);
+    --shadow-red: 0 0 24px var(--red-glow);
+  }
+
+  * { box-sizing: border-box; }
+
+  html, body {
+    margin: 0; padding: 0;
+    min-height: 100vh;
+    font-family: 'Noto Sans SC', system-ui, -apple-system, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    line-height: 1.5;
+  }
+
+  ::-webkit-scrollbar { width: 8px; height: 8px; }
+  ::-webkit-scrollbar-track { background: var(--bg); }
+  ::-webkit-scrollbar-thumb { background: var(--surface-3); border-radius: 4px; }
+  ::-webkit-scrollbar-thumb:hover { background: var(--text-dim); }
+
+  .app { min-height: 100vh; display: flex; flex-direction: column; }
+
+  /* Header */
+  .header {
+    position: sticky; top: 0; z-index: 100;
+    background: linear-gradient(180deg, rgba(11,11,11,0.95), rgba(11,11,11,0.85));
+    backdrop-filter: blur(20px) saturate(1.2);
+    border-bottom: 1px solid var(--border);
+  }
+
+  .header-inner {
+    max-width: 1440px; margin: 0 auto; padding: 1rem 1.5rem;
+    display: flex; align-items: center; gap: 1.25rem; flex-wrap: wrap;
+  }
+
+  .brand {
+    display: flex; align-items: center; gap: 0.6rem;
+    text-decoration: none; color: var(--text); flex-shrink: 0;
+  }
+  .brand-icon {
+    width: 36px; height: 36px; border-radius: 8px;
+    background: var(--red); display: grid; place-items: center;
+    font-weight: 800; font-size: 1.1rem; letter-spacing: -0.02em;
+  }
+  .brand-text { font-weight: 700; font-size: 1.25rem; letter-spacing: -0.01em; }
+  .brand-text span { color: var(--red); }
+
+  .search-wrap {
+    flex: 1; min-width: 260px; position: relative;
+  }
+  .search-wrap input {
+    width: 100%; padding: 0.85rem 1rem 0.85rem 2.6rem;
+    border-radius: 100px; border: 1px solid var(--border);
+    background: var(--surface); color: var(--text);
+    font-size: 0.95rem; outline: none; transition: all .2s ease;
+  }
+  .search-wrap input:focus {
+    border-color: var(--red);
+    box-shadow: 0 0 0 3px var(--red-dim);
+  }
+  .search-wrap input::placeholder { color: var(--text-dim); }
+  .search-wrap svg {
+    position: absolute; left: 0.9rem; top: 50%; transform: translateY(-50%);
+    width: 18px; height: 18px; color: var(--text-dim); pointer-events: none;
+  }
+
+  .search-suggest {
+    position: absolute; top: calc(100% + 6px); left: 0; right: 0;
+    background: var(--surface-2); border: 1px solid var(--border);
+    border-radius: var(--radius); overflow: hidden; z-index: 110;
+    box-shadow: var(--shadow); display: none;
+  }
+  .search-suggest.open { display: block; }
+  .search-suggest div {
+    padding: 0.65rem 1rem; cursor: pointer; font-size: 0.9rem;
+    color: var(--text-muted); border-bottom: 1px solid var(--border);
+  }
+  .search-suggest div:last-child { border-bottom: none; }
+  .search-suggest div:hover, .search-suggest div.active {
+    background: var(--red-dim); color: var(--text);
+  }
+
+  .header-actions { display: flex; gap: 0.5rem; flex-shrink: 0; }
+  .icon-btn {
+    width: 40px; height: 40px; border-radius: 50%;
+    border: 1px solid var(--border); background: var(--surface);
+    color: var(--text-muted); display: grid; place-items: center;
+    cursor: pointer; transition: all .2s ease;
+  }
+  .icon-btn:hover { border-color: var(--red); color: var(--red); background: var(--red-dim); }
+
+  /* Filters */
+  .filters {
+    max-width: 1440px; margin: 0 auto; padding: 0.75rem 1.5rem 0;
+    display: flex; gap: 0.5rem; flex-wrap: wrap;
+  }
+  .filter-btn {
+    padding: 0.4rem 0.9rem; border-radius: 100px; border: 1px solid var(--border);
+    background: transparent; color: var(--text-muted); font-size: 0.85rem;
+    cursor: pointer; transition: all .2s ease;
+  }
+  .filter-btn:hover { border-color: var(--red); color: var(--text); }
+  .filter-btn.active { background: var(--red); color: #fff; border-color: var(--red); }
+
+  /* Main */
+  .main {
+    flex: 1; max-width: 1440px; width: 100%; margin: 0 auto; padding: 1.25rem 1.5rem 5rem;
+  }
+  .stats { color: var(--text-muted); font-size: 0.85rem; margin-bottom: 1rem; }
+  .stats strong { color: var(--text); font-weight: 600; }
+
+  /* Grid */
+  .game-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+    gap: 1.25rem;
+  }
+  @media (max-width: 768px) {
+    .game-grid { grid-template-columns: repeat(3, 1fr); gap: 1rem; }
+  }
+  @media (max-width: 520px) {
+    .game-grid { grid-template-columns: repeat(2, 1fr); gap: 0.75rem; }
+  }
+
+  /* Card */
+  .game-card {
+    position: relative; background: var(--surface);
+    border-radius: var(--radius); overflow: hidden;
+    border: 1px solid var(--border);
+    transition: transform .25s ease, box-shadow .25s ease, border-color .25s ease;
+    cursor: pointer; display: flex; flex-direction: column;
+  }
+  .game-card:hover, .game-card:focus-within {
+    transform: scale(1.04);
+    box-shadow: var(--shadow), var(--shadow-red);
+    border-color: rgba(230,0,18,0.4);
+    z-index: 2;
+  }
+  .game-card .cover-wrap {
+    position: relative; aspect-ratio: 3 / 4; overflow: hidden;
+    background: linear-gradient(135deg, var(--surface-2), var(--surface-3));
+  }
+  .game-card .cover-wrap img {
+    width: 100%; height: 100%; object-fit: cover; display: block;
+    transition: transform .3s ease;
+  }
+  .game-card:hover .cover-wrap img { transform: scale(1.05); }
+  .game-card .cover-placeholder {
+    width: 100%; height: 100%; display: grid; place-items: center;
+    font-size: 3rem; font-weight: 800; color: var(--text-dim);
+    background: linear-gradient(135deg, var(--surface-2), var(--surface-3));
+  }
+  .game-card .install-hover {
+    position: absolute; inset: 0; display: grid; place-items: center;
+    background: rgba(0,0,0,0.55); opacity: 0; transition: opacity .2s ease;
+  }
+  .game-card:hover .install-hover { opacity: 1; }
+  .install-hover .install-icon {
+    width: 48px; height: 48px; border-radius: 50%;
+    background: var(--red); color: #fff; display: grid; place-items: center;
+    box-shadow: var(--shadow-red); transform: scale(0.9); transition: transform .2s ease;
+  }
+  .game-card:hover .install-hover .install-icon { transform: scale(1); }
+
+  .card-info { padding: 0.75rem; display: flex; flex-direction: column; gap: 0.35rem; }
+  .card-title {
+    font-size: 0.9rem; font-weight: 600; line-height: 1.35;
+    display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical;
+    overflow: hidden; min-height: 2.4em; color: var(--text);
+  }
+  .card-badges {
+    display: flex; gap: 0.4rem; flex-wrap: wrap; margin-top: 0.2rem;
+  }
+  .badge {
+    font-size: 0.65rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.04em;
+    padding: 0.2rem 0.45rem; border-radius: 4px; border: 1px solid;
+  }
+  .badge.base { color: #4fc3f7; background: rgba(79,195,247,0.12); border-color: rgba(79,195,247,0.25); }
+  .badge.upd  { color: #ffd54f; background: rgba(255,213,79,0.12); border-color: rgba(255,213,79,0.25); }
+  .badge.dlc  { color: #ce93d8; background: rgba(206,147,216,0.12); border-color: rgba(206,147,216,0.25); }
+  .badge.match { color: #69f0ae; background: rgba(105,240,174,0.12); border-color: rgba(105,240,174,0.25); }
+  .badge.nomatch { color: var(--text-dim); background: rgba(110,110,110,0.1); border-color: rgba(110,110,110,0.2); }
+
+  /* Skeleton */
+  .skeleton-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+    gap: 1.25rem;
+  }
+  @media (max-width: 768px) {
+    .skeleton-grid { grid-template-columns: repeat(3, 1fr); gap: 1rem; }
+  }
+  @media (max-width: 520px) {
+    .skeleton-grid { grid-template-columns: repeat(2, 1fr); gap: 0.75rem; }
+  }
+  .skeleton-card {
+    background: var(--surface); border-radius: var(--radius);
+    border: 1px solid var(--border); overflow: hidden;
+    animation: pulse 1.6s infinite;
+  }
+  .skeleton-cover { aspect-ratio: 3/4; background: var(--surface-2); }
+  .skeleton-text { height: 14px; background: var(--surface-2); margin: 0.75rem; border-radius: 4px; width: 70%; }
+  .skeleton-badge { height: 14px; background: var(--surface-2); margin: 0 0.75rem 0.75rem; border-radius: 4px; width: 40%; }
+  @keyframes pulse { 0%,100%{opacity:.6} 50%{opacity:.3} }
+
+  /* Empty */
+  .empty-state { text-align: center; padding: 4rem 1rem; color: var(--text-muted); }
+  .empty-state svg { width: 56px; height: 56px; margin-bottom: 0.75rem; color: var(--text-dim); }
+
+  /* Pagination */
+  .pagination {
+    display: flex; justify-content: center; align-items: center; gap: 0.75rem; margin-top: 2rem;
+  }
+  .pagination button {
+    padding: 0.55rem 1.1rem; border-radius: var(--radius-sm); border: 1px solid var(--border);
+    background: var(--surface); color: var(--text); cursor: pointer; transition: all .2s ease;
+  }
+  .pagination button:hover:not(:disabled) { border-color: var(--red); background: var(--red-dim); }
+  .pagination button:disabled { opacity: 0.35; cursor: not-allowed; }
+  .pagination-info { color: var(--text-muted); font-size: 0.85rem; }
+
+  /* Status Bar */
+  .status-bar {
+    position: fixed; bottom: 0; left: 0; right: 0;
+    background: rgba(11,11,11,0.92); backdrop-filter: blur(16px);
+    border-top: 1px solid var(--border); padding: 0.75rem 1.5rem;
+    display: flex; align-items: center; justify-content: space-between; gap: 1rem; z-index: 100;
+  }
+  .status-info { display: flex; align-items: center; gap: 0.6rem; font-size: 0.8rem; color: var(--text-muted); min-width: 0; }
+  .status-dot { width: 8px; height: 8px; border-radius: 50%; background: #69f0ae; box-shadow: 0 0 8px #69f0ae; flex-shrink: 0; }
+  .status-dot.pending { background: #ffd54f; box-shadow: 0 0 8px #ffd54f; }
+  .status-dot.running { background: #4fc3f7; box-shadow: 0 0 8px #4fc3f7; }
+  .status-dot.failed { background: var(--red); box-shadow: 0 0 8px var(--red); }
+  .status-message { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .progress { width: 160px; height: 5px; background: var(--surface-2); border-radius: 3px; overflow: hidden; flex-shrink: 0; }
+  .progress-bar { height: 100%; background: var(--red); width: 0%; transition: width .3s ease; }
+
+  /* History Drawer */
+  .drawer-overlay {
+    position: fixed; inset: 0; background: rgba(0,0,0,0.65); z-index: 200;
+    opacity: 0; pointer-events: none; transition: opacity .3s ease;
+  }
+  .drawer-overlay.open { opacity: 1; pointer-events: auto; }
+  .drawer {
+    position: fixed; top: 0; right: 0; bottom: 0; width: min(440px, 90vw);
+    background: rgba(20,20,20,0.85); backdrop-filter: blur(24px) saturate(1.3);
+    border-left: 1px solid var(--border); z-index: 201;
+    transform: translateX(100%); transition: transform .35s cubic-bezier(.4,0,.2,1);
+    display: flex; flex-direction: column;
+  }
+  .drawer.open { transform: translateX(0); }
+  .drawer-header {
+    padding: 1.25rem; border-bottom: 1px solid var(--border);
+    display: flex; align-items: center; justify-content: space-between;
+  }
+  .drawer-header h2 { margin: 0; font-size: 1.2rem; font-weight: 700; }
+  .drawer-body { flex: 1; overflow-y: auto; padding: 1rem; }
+  .history-item {
+    padding: 0.9rem; background: var(--surface); border: 1px solid var(--border);
+    border-radius: var(--radius-sm); margin-bottom: 0.6rem; font-size: 0.82rem;
+  }
+  .history-item .title { font-weight: 600; color: var(--text); margin-bottom: 0.25rem; }
+  .history-item .meta { color: var(--text-muted); font-size: 0.75rem; margin-bottom: 0.4rem; }
+  .history-status {
+    display: inline-flex; align-items: center; gap: 0.3rem;
+    font-weight: 700; font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.04em;
+  }
+  .history-status.completed { color: #69f0ae; }
+  .history-status.failed { color: var(--red); }
+  .history-status.running { color: #4fc3f7; }
+  .history-status.pending { color: #ffd54f; }
+  .history-progress { margin-top: 0.3rem; color: var(--text-dim); font-size: 0.75rem; }
+
+  /* Game Detail Modal */
+  .modal-overlay {
+    position: fixed; inset: 0; background: rgba(0,0,0,0.75); z-index: 300;
+    display: grid; place-items: center; padding: 1rem;
+    opacity: 0; pointer-events: none; transition: opacity .25s ease;
+  }
+  .modal-overlay.open { opacity: 1; pointer-events: auto; }
+  .modal {
+    background: var(--bg-elevated); border: 1px solid var(--border); border-radius: var(--radius);
+    width: min(680px, 100%); max-height: 90vh; overflow-y: auto;
+    box-shadow: var(--shadow); display: flex; flex-direction: column;
+  }
+  .modal-header {
+    padding: 1.25rem; border-bottom: 1px solid var(--border);
+    display: flex; align-items: center; justify-content: space-between;
+  }
+  .modal-header h3 { margin: 0; font-size: 1.15rem; font-weight: 700; }
+  .modal-body { padding: 1.25rem; display: flex; flex-direction: column; gap: 1rem; }
+  .modal-cover-wrap {
+    width: 100%; max-width: 280px; aspect-ratio: 3/4; border-radius: var(--radius-sm);
+    overflow: hidden; background: linear-gradient(135deg, var(--surface-2), var(--surface-3));
+    align-self: center; border: 1px solid var(--border);
+  }
+  .modal-cover-wrap img { width: 100%; height: 100%; object-fit: cover; display: block; }
+  .modal-cover-wrap .cover-placeholder {
+    width: 100%; height: 100%; display: grid; place-items: center;
+    font-size: 4rem; font-weight: 800; color: var(--text-dim);
+  }
+  .modal-meta { text-align: center; }
+  .modal-meta .title { font-size: 1.3rem; font-weight: 700; margin-bottom: 0.25rem; }
+  .modal-meta .subtitle { color: var(--text-muted); font-size: 0.9rem; }
+  .modal-meta .detail-row {
+    display: flex; justify-content: center; gap: 1rem; flex-wrap: wrap;
+    margin-top: 0.5rem; color: var(--text-dim); font-size: 0.82rem;
+  }
+  .file-list { display: flex; flex-direction: column; gap: 0.4rem; }
+  .file-item {
+    display: flex; align-items: center; gap: 0.6rem;
+    padding: 0.55rem 0.75rem; background: var(--surface); border-radius: var(--radius-sm);
+    border: 1px solid var(--border); font-size: 0.8rem;
+  }
+  .file-item .ftype {
+    font-size: 0.65rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.04em;
+    padding: 0.15rem 0.4rem; border-radius: 4px; flex-shrink: 0;
+  }
+  .file-item .ftype.base { color: #4fc3f7; background: rgba(79,195,247,0.12); }
+  .file-item .ftype.upd  { color: #ffd54f; background: rgba(255,213,79,0.12); }
+  .file-item .ftype.dlc  { color: #ce93d8; background: rgba(206,147,216,0.12); }
+  .file-item .fname { color: var(--text-muted); word-break: break-all; }
+  .modal-actions { display: flex; gap: 0.75rem; padding: 0 1.25rem 1.25rem; }
+  .btn {
+    flex: 1; padding: 0.75rem 1rem; border-radius: var(--radius-sm); border: none;
+    font-weight: 700; font-size: 0.9rem; cursor: pointer; transition: all .2s ease;
+    display: inline-flex; align-items: center; justify-content: center; gap: 0.4rem;
+  }
+  .btn-primary { background: var(--red); color: #fff; }
+  .btn-primary:hover { background: #ff1a2e; box-shadow: var(--shadow-red); transform: translateY(-1px); }
+  .btn-primary:disabled { opacity: 0.5; cursor: not-allowed; transform: none; box-shadow: none; }
+  .btn-secondary { background: var(--surface-2); color: var(--text); border: 1px solid var(--border); }
+  .btn-secondary:hover { background: var(--surface-3); border-color: var(--red); }
+  .btn-ghost { background: transparent; color: var(--text-muted); border: 1px solid var(--border); }
+  .btn-ghost:hover { color: var(--text); border-color: var(--text-dim); }
+
+  /* Install settings modal (reuses modal-overlay) */
+  .install-modal .modal { width: min(420px, 100%); }
+  .form-group { margin-bottom: 1rem; }
+  .form-group label { display: block; font-size: 0.75rem; font-weight: 700; color: var(--text-muted); margin-bottom: 0.35rem; text-transform: uppercase; letter-spacing: 0.04em; }
+  .form-group input, .form-group select {
+    width: 100%; padding: 0.7rem 0.9rem; border-radius: var(--radius-sm); border: 1px solid var(--border);
+    background: var(--surface); color: var(--text); font-size: 0.95rem; outline: none;
+  }
+  .form-group input:focus, .form-group select:focus { border-color: var(--red); box-shadow: 0 0 0 3px var(--red-dim); }
+  .form-hint { font-size: 0.75rem; color: var(--text-dim); margin-top: 0.25rem; }
+
+  .hidden { display: none !important; }
+
+  @media (max-width: 768px) {
+    .header-inner { padding: 0.75rem 1rem; }
+    .brand-text { font-size: 1.1rem; }
+    .search-wrap { order: 3; width: 100%; }
+    .main { padding: 1rem 1rem 5rem; }
+    .status-bar { padding: 0.6rem 1rem; }
+    .progress { width: 100px; }
+    .modal-actions { flex-direction: column; }
+  }
+</style>
+</head>
+<body>
+<div class="app">
+  <header class="header">
+    <div class="header-inner">
+      <a href="/" class="brand">
+        <div class="brand-icon">S</div>
+        <div class="brand-text">Switch <span>Installer</span></div>
+      </a>
+      <div class="search-wrap">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"></circle><path d="m21 21-4.3-4.3"></path></svg>
+        <input type="text" id="query" placeholder="搜索游戏名、英文标题、ID..." autocomplete="off">
+        <div class="search-suggest" id="searchSuggest"></div>
+      </div>
+      <div class="header-actions">
+        <button class="icon-btn" id="settingsBtn" title="FTP 设置">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06-.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path></svg>
+        </button>
+        <button class="icon-btn" id="historyBtn" title="安装记录">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"></path></svg>
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <div class="filters" id="filters">
+    <button class="filter-btn active" data-filter="all">全部</button>
+    <button class="filter-btn" data-filter="base">本体</button>
+    <button class="filter-btn" data-filter="upd">更新</button>
+    <button class="filter-btn" data-filter="dlc">DLC</button>
+  </div>
+
+  <main class="main">
+    <div class="stats" id="stats">输入关键词开始搜索</div>
+    <div id="results" class="game-grid"></div>
+    <div id="pagination" class="pagination hidden"></div>
+  </main>
+</div>
+
+<!-- Status Bar -->
+<div class="status-bar">
+  <div class="status-info">
+    <div class="status-dot" id="statusDot"></div>
+    <div class="status-message" id="statusMsg">就绪 · 等待搜索</div>
+  </div>
+  <div class="progress"><div class="progress-bar" id="progressBar"></div></div>
+</div>
+
+<!-- History Drawer -->
+<div class="drawer-overlay" id="drawerOverlay"></div>
+<div class="drawer" id="drawer">
+  <div class="drawer-header">
+    <h2>安装记录</h2>
+    <button class="icon-btn" id="closeDrawer">✕</button>
+  </div>
+  <div class="drawer-body" id="historyList">
+    <div class="empty-state">暂无安装记录</div>
+  </div>
+</div>
+
+<!-- Game Detail Modal -->
+<div class="modal-overlay" id="detailOverlay">
+  <div class="modal">
+    <div class="modal-header">
+      <h3>游戏详情</h3>
+      <button class="icon-btn" id="closeDetail">✕</button>
+    </div>
+    <div class="modal-body" id="detailBody">
+      <!-- injected -->
+    </div>
+    <div class="modal-actions" id="detailActions">
+      <button class="btn btn-secondary" id="detailCancel">关闭</button>
+      <button class="btn btn-primary" id="detailInstall">安装游戏</button>
+    </div>
+  </div>
+</div>
+
+<!-- Install / Settings Modal -->
+<div class="modal-overlay install-modal" id="modalOverlay">
+  <div class="modal">
+    <div class="modal-header">
+      <h3 id="modalTitle">安装到 Switch</h3>
+      <button class="icon-btn" id="closeInstallModal">✕</button>
+    </div>
+    <div class="modal-body">
+      <p id="modalDesc" style="color:var(--text-muted);margin:0 0 1rem;font-size:0.9rem;">确认将此游戏推送到 Switch 主机</p>
+      <div class="form-group">
+        <label>FTP 地址</label>
+        <input type="text" id="ftpUrl" placeholder="ftp://Switch-IP:5000">
+        <div class="form-hint">例如 ftp://192.168.1.100:5000</div>
+      </div>
+      <div class="form-group">
+        <label>目标目录</label>
+        <select id="targetPath">
+          <option value="/">DBI 根目录 (/)</option>
+          <option value="/atmosphere/contents/">/atmosphere/contents/</option>
+        </select>
+      </div>
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-ghost" id="testFtp">测试连接</button>
+      <button class="btn btn-secondary" id="cancelInstall">取消</button>
+      <button class="btn btn-primary" id="confirmInstall">检查并安装</button>
+    </div>
+  </div>
+</div>
+
+<script>
+  const $ = id => document.getElementById(id);
+  let currentPage = 1;
+  let activeRecordId = null;
+  let pollTimer = null;
+  let historyTimer = null;
+  let pendingGameId = null;
+  let modalMode = 'install';
+  let visibleGames = new Map();
+  let currentFilter = 'all';
+  let currentQuery = '';
+  let currentSearchData = null;
+  let activeDetailGameId = null;
+  let suggestTimer = null;
+  let suggestIndex = -1;
+
+  async function api(path, opts = {}) {
+    const res = await fetch(path, opts);
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
+    return data;
+  }
+
+  function debounce(fn, ms) {
+    let t;
+    return (...args) => { clearTimeout(t); t = setTimeout(() => fn(...args), ms); };
+  }
+
+  function formatSize(bytes) {
+    if (!bytes) return '';
+    const units = ['B','KB','MB','GB','TB'];
+    let i = 0;
+    while (bytes >= 1024 && i < units.length - 1) { bytes /= 1024; i++; }
+    return `${bytes.toFixed(2)} ${units[i]}`;
+  }
+
+  function escapeHtml(str) {
+    return String(str).replace(/[<>'"&]/g, c => ({'<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;','&':'&amp;'}[c]));
+  }
+
+  function coverPlaceholder(title) {
+    const ch = (title || '?').charAt(0).toUpperCase();
+    return `<div class="cover-placeholder">${escapeHtml(ch)}</div>`;
+  }
+
+  function coverHtml(g, cls) {
+    if (g.icon_url) {
+      return `<img class="${cls}" src="${escapeHtml(g.icon_url)}" alt="" loading="lazy" referrerpolicy="no-referrer" onerror="this.outerHTML='${coverPlaceholder(g.title_name || g.folder_name).replace(/'/g, "&#39;")}'">`;
+    }
+    return coverPlaceholder(g.title_name || g.folder_name);
+  }
+
+  function renderTags(files) {
+    const counts = { base: 0, upd: 0, dlc: 0, other: 0 };
+    (files || []).forEach(f => counts[f.fileType]++);
+    const tags = [];
+    if (counts.base) tags.push(`<span class="badge base">本体 ${counts.base}</span>`);
+    if (counts.upd) tags.push(`<span class="badge upd">更新 ${counts.upd}</span>`);
+    if (counts.dlc) tags.push(`<span class="badge dlc">DLC ${counts.dlc}</span>`);
+    return tags.join('');
+  }
+
+  function renderMatchTag(g) {
+    if (g.match_status === 'matched') return '<span class="badge match">已匹配</span>';
+    return '<span class="badge nomatch">未匹配</span>';
+  }
+
+  function passesFilter(g) {
+    if (currentFilter === 'all') return true;
+    const files = g.files || [];
+    return files.some(f => f.fileType === currentFilter);
+  }
+
+  async function search(page = 1) {
+    const q = $('query').value.trim();
+    currentQuery = q;
+    if (!q) {
+      $('results').innerHTML = '';
+      $('pagination').classList.add('hidden');
+      $('stats').textContent = '输入关键词开始搜索';
+      return;
+    }
+    currentPage = page;
+    setStatus('搜索中...', 0, 'running');
+    showSkeleton();
+
+    try {
+      const data = await api(`/api/search?q=${encodeURIComponent(q)}&page=${page}&limit=30`);
+      currentSearchData = data;
+      const filtered = data.rows.filter(passesFilter);
+      const totalPages = Math.ceil(data.total / data.limit) || 1;
+      $('stats').innerHTML = `共 <strong>${data.total.toLocaleString()}</strong> 个结果 · 第 ${data.page} / ${totalPages} 页`;
+      renderResults(filtered);
+      renderPagination(data);
+      setStatus('就绪', 0, 'ready');
+    } catch (err) {
+      setStatus('搜索失败: ' + err.message, 0, 'failed');
+      $('results').innerHTML = `<div class="empty-state"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="8" x2="12" y2="12"></line><line x1="12" y1="16" x2="12.01" y2="16"></line></svg><div>搜索失败: ${escapeHtml(err.message)}</div></div>`;
+    }
+  }
+
+  function showSkeleton() {
+    $('results').innerHTML = Array(12).fill(0).map(() => `
+      <div class="skeleton-card"><div class="skeleton-cover"></div><div class="skeleton-text"></div><div class="skeleton-badge"></div></div>
+    `).join('');
+  }
+
+  function renderResults(rows) {
+    if (!rows.length) {
+      $('results').innerHTML = `<div class="empty-state"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"></circle><path d="m21 21-4.3-4.3"></path></svg><div>未找到匹配游戏</div></div>`;
+      return;
+    }
+    visibleGames = new Map(rows.map(g => [String(g.id), g]));
+    $('results').innerHTML = rows.map(g => {
+      const displayTitle = g.title_name || g.folder_name;
+      return `
+      <div class="game-card" tabindex="0" data-game-id="${g.id}" role="button" aria-label="${escapeHtml(displayTitle)}">
+        <div class="cover-wrap">
+          ${coverHtml(g, '')}
+          <div class="install-hover">
+            <div class="install-icon">
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
+            </div>
+          </div>
+        </div>
+        <div class="card-info">
+          <div class="card-title">${escapeHtml(displayTitle)}</div>
+          <div class="card-badges">${renderMatchTag(g)}${renderTags(g.files || [])}</div>
+        </div>
+      </div>
+    `;
+    }).join('');
+  }
+
+  function renderPagination(data) {
+    const totalPages = Math.ceil(data.total / data.limit) || 1;
+    const el = $('pagination');
+    if (totalPages <= 1) { el.classList.add('hidden'); return; }
+    el.classList.remove('hidden');
+    el.innerHTML = `
+      <button ${data.page <= 1 ? 'disabled' : ''} onclick="search(${data.page - 1})">上一页</button>
+      <span class="pagination-info">${data.page} / ${totalPages}</span>
+      <button ${data.page >= totalPages ? 'disabled' : ''} onclick="search(${data.page + 1})">下一页</button>
+    `;
+  }
+
+  /* Detail Modal */
+  async function openDetail(gameId) {
+    const g = visibleGames.get(String(gameId));
+    if (!g) return;
+    activeDetailGameId = gameId;
+    const displayTitle = g.title_name || g.folder_name;
+    const subtitle = g.title_name ? g.folder_name : '';
+
+    let fileListHtml = '';
+    if (g.files && g.files.length) {
+      fileListHtml = g.files.map(f => `
+        <div class="file-item">
+          <span class="ftype ${f.fileType}">${f.fileType.toUpperCase()}</span>
+          <span class="fname">${escapeHtml(f.fileName)}${f.size ? ` · ${formatSize(f.size)}` : ''}</span>
+        </div>
+      `).join('');
+    } else {
+      // fetch details if files not present
+      try {
+        const data = await api(`/api/games/${gameId}`);
+        const files = data.game && data.game.files ? data.game.files : [];
+        fileListHtml = files.map(f => `
+          <div class="file-item">
+            <span class="ftype ${f.fileType}">${f.fileType.toUpperCase()}</span>
+            <span class="fname">${escapeHtml(f.fileName)}${f.size ? ` · ${formatSize(f.size)}` : ''}</span>
+          </div>
+        `).join('');
+      } catch (e) {
+        fileListHtml = `<div style="color:var(--text-dim);font-size:0.85rem;">无法加载文件列表</div>`;
+      }
+    }
+
+    $('detailBody').innerHTML = `
+      <div class="modal-cover-wrap">${coverHtml(g, '')}</div>
+      <div class="modal-meta">
+        <div class="title">${escapeHtml(displayTitle)}</div>
+        ${subtitle ? `<div class="subtitle">${escapeHtml(subtitle)}</div>` : ''}
+        <div class="detail-row">
+          ${g.publisher ? `<span>发行商: ${escapeHtml(g.publisher)}</span>` : ''}
+          ${g.release_date ? `<span>发售: ${escapeHtml(g.release_date)}</span>` : ''}
+          ${g.title_id ? `<span>Title ID: ${escapeHtml(g.title_id)}</span>` : ''}
+        </div>
+      </div>
+      <div class="file-list">${fileListHtml}</div>
+    `;
+    $('detailOverlay').classList.add('open');
+  }
+
+  function closeDetail() {
+    $('detailOverlay').classList.remove('open');
+    activeDetailGameId = null;
+  }
+
+  /* Install Modal */
+  function openInstall(gameId) {
+    const game = visibleGames.get(String(gameId));
+    const name = game ? (game.title_name || game.folder_name) : `ID ${gameId}`;
+    modalMode = 'install';
+    pendingGameId = gameId;
+    $('modalTitle').textContent = '安装到 Switch';
+    $('modalDesc').textContent = name;
+    $('ftpUrl').value = localStorage.getItem('switchInstallerFtpUrl') || '';
+    $('confirmInstall').textContent = '检查并安装';
+    $('modalOverlay').classList.add('open');
+  }
+
+  function openSettings() {
+    modalMode = 'settings';
+    pendingGameId = null;
+    $('modalTitle').textContent = '默认 FTP 设置';
+    $('modalDesc').textContent = '保存后会自动填入安装弹窗';
+    $('ftpUrl').value = localStorage.getItem('switchInstallerFtpUrl') || '';
+    $('confirmInstall').textContent = '保存';
+    $('modalOverlay').classList.add('open');
+  }
+
+  function closeModal() {
+    $('modalOverlay').classList.remove('open');
+    pendingGameId = null;
+    modalMode = 'install';
+    $('confirmInstall').textContent = '检查并安装';
+    $('confirmInstall').disabled = false;
+  }
+
+  async function confirmInstall() {
+    const ftpUrl = $('ftpUrl').value.trim();
+    const targetPath = $('targetPath').value;
+    if (!ftpUrl) { alert('请输入 FTP 地址'); return; }
+    if (modalMode === 'settings') {
+      localStorage.setItem('switchInstallerFtpUrl', ftpUrl);
+      closeModal();
+      setStatus('FTP 地址已保存', 0, 'ready');
+      return;
+    }
+    if (!pendingGameId) return;
+
+    $('confirmInstall').disabled = true;
+    $('confirmInstall').textContent = '检查中...';
+    try {
+      const data = await api('/api/install', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ gameId: pendingGameId, ftpUrl, targetPath })
+      });
+      localStorage.setItem('switchInstallerFtpUrl', ftpUrl);
+      activeRecordId = data.recordId;
+      closeModal();
+      setStatus('已加入安装队列', 0, 'pending');
+      startPolling();
+    } catch (err) {
+      alert('安装失败: ' + err.message);
+    } finally {
+      $('confirmInstall').disabled = false;
+      $('confirmInstall').textContent = '检查并安装';
+    }
+  }
+
+  async function testFtp() {
+    const ftpUrl = $('ftpUrl').value.trim();
+    if (!ftpUrl) { alert('请输入 FTP 地址'); return; }
+    $('testFtp').disabled = true;
+    $('testFtp').textContent = '测试中...';
+    try {
+      await api('/api/ftp/preflight', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ftpUrl })
+      });
+      alert('FTP 连接成功');
+    } catch (err) {
+      alert('FTP 连接失败: ' + err.message);
+    } finally {
+      $('testFtp').disabled = false;
+      $('testFtp').textContent = '测试连接';
+    }
+  }
+
+  async function refreshStatus() {
+    if (!activeRecordId) return;
+    try {
+      const data = await api(`/api/install/${activeRecordId}`);
+      const r = data.record;
+      const state = r.status === 'completed' ? 'ready' : r.status === 'failed' ? 'failed' : 'running';
+      setStatus(`${r.status}: ${r.message}`, r.progress, state);
+      if (['completed','failed'].includes(r.status)) {
+        clearInterval(pollTimer);
+        pollTimer = null;
+      }
+    } catch (err) {
+      setStatus('状态获取失败: ' + err.message, 0, 'failed');
+    }
+  }
+
+  function startPolling() {
+    if (pollTimer) clearInterval(pollTimer);
+    pollTimer = setInterval(refreshStatus, 1500);
+    refreshStatus();
+  }
+
+  function setStatus(msg, progress, state = 'ready') {
+    $('statusMsg').textContent = msg;
+    $('progressBar').style.width = `${Math.max(0, Math.min(100, progress))}%`;
+    $('statusDot').className = 'status-dot ' + state;
+  }
+
+  /* Drawer */
+  function openDrawer() {
+    $('drawer').classList.add('open');
+    $('drawerOverlay').classList.add('open');
+    loadHistory();
+    if (historyTimer) clearInterval(historyTimer);
+    historyTimer = setInterval(loadHistory, 10000);
+  }
+
+  function closeDrawer() {
+    $('drawer').classList.remove('open');
+    $('drawerOverlay').classList.remove('open');
+    if (historyTimer) { clearInterval(historyTimer); historyTimer = null; }
+  }
+
+  async function loadHistory() {
+    try {
+      const data = await api('/api/install/history?limit=50');
+      const list = $('historyList');
+      if (!data.history.length) {
+        list.innerHTML = '<div class="empty-state">暂无安装记录</div>';
+        return;
+      }
+      list.innerHTML = data.history.map(h => `
+        <div class="history-item">
+          <div class="title">${escapeHtml(h.folderName || '未知游戏')}</div>
+          <div class="meta">${escapeHtml(h.ftpUrl)} · ${new Date(h.createdAt).toLocaleString()}</div>
+          <span class="history-status ${h.status}">${h.status.toUpperCase()}</span>
+          <div class="history-progress">${escapeHtml(h.message || '')} · ${h.progress}%</div>
+        </div>
+      `).join('');
+    } catch (err) {
+      $('historyList').innerHTML = `<div class="empty-state">加载失败: ${escapeHtml(err.message)}</div>`;
+    }
+  }
+
+  /* Search Suggestions */
+  async function fetchSuggestions(q) {
+    if (!q) { $('searchSuggest').classList.remove('open'); return; }
+    try {
+      const data = await api(`/api/search/suggest?q=${encodeURIComponent(q)}`);
+      const list = data.suggestions || [];
+      if (!list.length) { $('searchSuggest').classList.remove('open'); return; }
+      $('searchSuggest').innerHTML = list.map((s, i) => `<div data-index="${i}">${escapeHtml(s.title || s)}</div>`).join('');
+      $('searchSuggest').classList.add('open');
+      suggestIndex = -1;
+    } catch (e) {
+      $('searchSuggest').classList.remove('open');
+    }
+  }
+
+  function closeSuggest() {
+    $('searchSuggest').classList.remove('open');
+    suggestIndex = -1;
+  }
+
+  /* Keyboard navigation */
+  document.addEventListener('keydown', e => {
+    if (e.key === 'Escape') {
+      if ($('detailOverlay').classList.contains('open')) { closeDetail(); return; }
+      if ($('modalOverlay').classList.contains('open')) { closeModal(); return; }
+      if ($('drawer').classList.contains('open')) { closeDrawer(); return; }
+      closeSuggest();
+    }
+    if (e.key === 'ArrowRight' || e.key === 'ArrowLeft') {
+      if ($('detailOverlay').classList.contains('open') || $('modalOverlay').classList.contains('open')) return;
+      const cards = Array.from(document.querySelectorAll('.game-card'));
+      const active = document.activeElement;
+      const idx = cards.indexOf(active);
+      if (idx === -1) return;
+      let next = idx;
+      if (e.key === 'ArrowRight') next = Math.min(cards.length - 1, idx + 1);
+      else next = Math.max(0, idx - 1);
+      if (next !== idx) { cards[next].focus(); e.preventDefault(); }
+    }
+  });
+
+  /* Events */
+  $('query').addEventListener('input', debounce(() => {
+    search(1);
+    fetchSuggestions($('query').value.trim());
+  }, 300));
+  $('query').addEventListener('keydown', e => {
+    if (e.key === 'Enter') { closeSuggest(); search(1); return; }
+    const items = $('searchSuggest').querySelectorAll('div');
+    if (!items.length) return;
+    if (e.key === 'ArrowDown') {
+      e.preventDefault();
+      suggestIndex = Math.min(items.length - 1, suggestIndex + 1);
+      items.forEach((it, i) => it.classList.toggle('active', i === suggestIndex));
+    } else if (e.key === 'ArrowUp') {
+      e.preventDefault();
+      suggestIndex = Math.max(-1, suggestIndex - 1);
+      items.forEach((it, i) => it.classList.toggle('active', i === suggestIndex));
+    } else if (e.key === 'Enter' && suggestIndex >= 0) {
+      e.preventDefault();
+      $('query').value = items[suggestIndex].textContent;
+      closeSuggest();
+      search(1);
+    }
+  });
+  $('searchSuggest').addEventListener('click', e => {
+    const div = e.target.closest('div');
+    if (!div) return;
+    $('query').value = div.textContent;
+    closeSuggest();
+    search(1);
+  });
+  document.addEventListener('click', e => {
+    if (!e.target.closest('.search-wrap')) closeSuggest();
+  });
+
+  /* Filters */
+  $('filters').addEventListener('click', e => {
+    const btn = e.target.closest('.filter-btn');
+    if (!btn) return;
+    document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    currentFilter = btn.dataset.filter;
+    if (currentSearchData) {
+      const filtered = currentSearchData.rows.filter(passesFilter);
+      renderResults(filtered);
+    } else {
+      search(1);
+    }
+  });
+
+  $('historyBtn').addEventListener('click', openDrawer);
+  $('closeDrawer').addEventListener('click', closeDrawer);
+  $('drawerOverlay').addEventListener('click', closeDrawer);
+
+  $('settingsBtn').addEventListener('click', openSettings);
+
+  /* Card click / keyboard */
+  $('results').addEventListener('click', e => {
+    const card = e.target.closest('.game-card');
+    if (!card) return;
+    const gameId = parseInt(card.dataset.gameId, 10);
+    openDetail(gameId);
+  });
+  $('results').addEventListener('keydown', e => {
+    if (e.key === 'Enter' || e.key === ' ') {
+      const card = e.target.closest('.game-card');
+      if (!card) return;
+      e.preventDefault();
+      const gameId = parseInt(card.dataset.gameId, 10);
+      openDetail(gameId);
+    }
+  });
+
+  $('detailCancel').addEventListener('click', closeDetail);
+  $('closeDetail').addEventListener('click', closeDetail);
+  $('detailOverlay').addEventListener('click', e => { if (e.target === $('detailOverlay')) closeDetail(); });
+  $('detailInstall').addEventListener('click', () => {
+    if (activeDetailGameId) { closeDetail(); openInstall(activeDetailGameId); }
+  });
+
+  $('cancelInstall').addEventListener('click', closeModal);
+  $('closeInstallModal').addEventListener('click', closeModal);
+  $('confirmInstall').addEventListener('click', confirmInstall);
+  $('testFtp').addEventListener('click', testFtp);
+  $('modalOverlay').addEventListener('click', e => { if (e.target === $('modalOverlay')) closeModal(); });
+
+  // Initial health
+  api('/api/health')
+    .then(d => setStatus(`就绪 · 已索引 ${d.games.toLocaleString()} 个游戏`, 0, 'ready'))
+    .catch(() => setStatus('后端连接失败', 0, 'failed'));
+</script>
+</body>
+</html>

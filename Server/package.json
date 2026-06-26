@@ -1,0 +1,26 @@
+{
+  "name": "switch-installer",
+  "version": "1.0.0",
+  "description": "Switch game search and install server",
+  "main": "src/server.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "start": "node src/server.js",
+    "import": "node scripts/import-tree.js",
+    "sync:titledb": "node scripts/sync-titledb.js",
+    "backfill:titledb": "node scripts/backfill-titledb.js"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "dependencies": {
+    "@oxdev03/node-tantivy-binding": "^0.2.1",
+    "basic-ftp": "^6.0.1",
+    "express": "^5.2.1",
+    "fast-levenshtein": "^3.0.0",
+    "fuse.js": "^7.4.2",
+    "pinyin": "^4.0.0-alpha.2",
+    "pm2": "^7.0.1"
+  }
+}

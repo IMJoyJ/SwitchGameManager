@@ -1,0 +1,40 @@
+# Node.js
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.pnpm-debug.log*
+
+# Environment
+.env
+.env.*
+!.env.example
+
+# Server runtime data
+Server/data/tantivy-index/
+Server/data/titledb/
+Server/data/source-trees/
+Server/data/install-history.jsonl
+Server/logs/
+Server/tmp/
+Server/backups/
+
+# Tauri / Rust build artifacts
+Client/src-tauri/target/
+
+# Editor & OS
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+Thumbs.db
+Desktop.ini
+*.swp
+*.swo
+*~
+.vscode/
+.idea/
+
+# Misc
+*.log
