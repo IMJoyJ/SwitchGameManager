@@ -19,8 +19,10 @@ Server/logs/
 Server/tmp/
 Server/backups/
 
-# Tauri / Rust build artifacts
-Client/src-tauri/target/
+# Wails build artifacts
+Client/build/
+Client/frontend/src/wailsjs/
+Client/frontend/node_modules/
 
 # Editor & OS
 .DS_Store

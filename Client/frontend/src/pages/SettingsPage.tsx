@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { invoke } from '@tauri-apps/api/core';
+import { PreflightFtp } from '../wailsjs/go/main/App';
 import { AppSettings, saveSettings } from '../lib/store';
 
 interface Props {
@@ -31,10 +31,7 @@ export default function SettingsPage({ settings, onSave }: Props) {
     setFtpTesting(true);
     setFtpResult(null);
     try {
-      const result = await invoke<{ ok: boolean; message: string }>('preflight_ftp', {
-        ftpUrl: form.ftpUrl,
-        ftpPath: form.ftpPath || '/',
-      });
+      const result = await PreflightFtp(form.ftpUrl, form.ftpPath || '/');
       setFtpResult(result);
     } catch (e: unknown) {
       setFtpResult({ ok: false, message: String(e) });

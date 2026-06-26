@@ -22,3 +22,8 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+# Wails
+/build/
+frontend/src/wailsjs/
+frontend/node_modules/

@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
-import { invoke } from '@tauri-apps/api/core';
-import { listen } from '@tauri-apps/api/event';
+import { EventsOn } from '../wailsjs/runtime/runtime';
+import { InstallGame } from '../wailsjs/go/main/App';
 import { AppSettings } from '../lib/store';
 import { Game, GameFile } from '../lib/api';
 
@@ -16,7 +16,6 @@ interface ProgressEvent {
   downloaded: number;
   total: number;
   percent: number;
-  speed_bps: number;
   status: string;
   message: string;
 }
@@ -45,10 +44,9 @@ export default function GameDetail({ game, settings, onClose }: Props) {
   const [fileStates, setFileStates] = useState<Record<string, FileInstallState>>({});
   const [installError, setInstallError] = useState('');
 
-  // Listen to Rust progress events
+  // Listen to Go progress events
   useEffect(() => {
-    const unlisten = listen<ProgressEvent>('install_progress', e => {
-      const p = e.payload;
+    const unlisten = EventsOn('install_progress', (p: ProgressEvent) => {
       if (p.game_id !== game.id) return;
       setFileStates(prev => ({
         ...prev,
@@ -61,7 +59,9 @@ export default function GameDetail({ game, settings, onClose }: Props) {
         },
       }));
     });
-    return () => { unlisten.then(fn => fn()); };
+    return () => {
+      unlisten();
+    };
   }, [game.id]);
 
   const handleInstall = async (file: GameFile) => {
@@ -82,14 +82,12 @@ export default function GameDetail({ game, settings, onClose }: Props) {
     }));
 
     try {
-      await invoke('install_game', {
-        params: {
-          server_url: settings.serverUrl,
-          game_id: game.id,
-          file_name: file.fileName,
-          ftp_url: settings.ftpUrl,
-          ftp_path: settings.ftpPath || '/',
-        },
+      await InstallGame({
+        server_url: settings.serverUrl,
+        game_id: game.id,
+        file_name: file.fileName,
+        ftp_url: settings.ftpUrl,
+        ftp_path: settings.ftpPath || '/',
       });
     } catch (e: unknown) {
       setFileStates(prev => ({

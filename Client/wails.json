@@ -1,0 +1,20 @@
+{
+  "$schema": "https://wails.io/schemas/config.v2.json",
+  "name": "switch-game-manager",
+  "outputfilename": "SwitchGameManager",
+  "frontend:install": "npm install",
+  "frontend:build": "npm run build",
+  "frontend:dev:watcher": "npm run dev",
+  "frontend:dev:serverUrl": "auto",
+  "wailsjsdir": "./frontend/src",
+  "version": "2",
+  "info": {
+    "companyName": "IMJoyJ",
+    "productName": "Switch Game Manager",
+    "productVersion": "0.1.0",
+    "copyright": "Copyright © 2024 IMJoyJ",
+    "comments": "A game manager for Nintendo Switch"
+  },
+  "assetdir": "./frontend/dist",
+  "reloaddirs": "./frontend/src"
+}
