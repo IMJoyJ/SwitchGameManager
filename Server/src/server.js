@@ -1,5 +1,6 @@
 'use strict';
 
+const fs = require('fs');
 const express = require('express');
 const path = require('path');
 const config = require('./config');
@@ -133,6 +134,62 @@ app.get('/api/install/:id', (req, res) => {
   const record = store.getInstallRecord(id);
   if (!record) return sendJson(res, { error: 'Install record not found' }, 404);
   sendJson(res, { record });
+});
+
+// File download (streaming) — client pulls game file and simultaneously uploads to Switch FTP
+app.get('/api/download/:gameId/:fileName', (req, res) => {
+  const gameId = parseInt(req.params.gameId, 10);
+  const fileName = req.params.fileName;
+
+  const game = tantivy.getGameById(gameId);
+  if (!game) return sendJson(res, { error: 'Game not found' }, 404);
+
+  const file = game.files.find(f => f.fileName === fileName);
+  if (!file) return sendJson(res, { error: 'File not found in game' }, 404);
+
+  // Resolve and validate local path (prevent path traversal)
+  const localPath = path.resolve(config.switchRoot, file.filePath);
+  const rootPath = path.resolve(config.switchRoot);
+  if (!localPath.startsWith(rootPath + path.sep) && localPath !== rootPath) {
+    return sendJson(res, { error: 'Unsafe file path' }, 400);
+  }
+
+  if (!fs.existsSync(localPath)) {
+    return sendJson(res, { error: 'File not found on disk' }, 404);
+  }
+
+  const stat = fs.statSync(localPath);
+  const total = stat.size;
+
+  // Support Range requests for resumable downloads
+  const rangeHeader = req.headers.range;
+  if (rangeHeader) {
+    const match = rangeHeader.match(/bytes=(\d+)-(\d*)/);
+    if (match) {
+      const start = parseInt(match[1], 10);
+      const end = match[2] ? parseInt(match[2], 10) : total - 1;
+      if (start >= total || end >= total) {
+        res.setHeader('Content-Range', `bytes */${total}`);
+        return res.status(416).end();
+      }
+      res.writeHead(206, {
+        'Content-Type': 'application/octet-stream',
+        'Content-Range': `bytes ${start}-${end}/${total}`,
+        'Content-Length': end - start + 1,
+        'Accept-Ranges': 'bytes',
+      });
+      fs.createReadStream(localPath, { start, end }).pipe(res);
+      return;
+    }
+  }
+
+  res.writeHead(200, {
+    'Content-Type': 'application/octet-stream',
+    'Content-Length': total,
+    'Content-Disposition': `attachment; filename="${encodeURIComponent(fileName)}"`,
+    'Accept-Ranges': 'bytes',
+  });
+  fs.createReadStream(localPath).pipe(res);
 });
 
 // Health
