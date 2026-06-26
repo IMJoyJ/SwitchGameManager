@@ -1,9 +1,13 @@
-use futures_util::StreamExt;
+use futures_util::TryStreamExt;
 use reqwest::Client as HttpClient;
 use serde::{Deserialize, Serialize};
+use std::pin::Pin;
+use std::sync::{Arc, Mutex};
+use std::task::{Context, Poll};
 use suppaftp::AsyncFtpStream;
 use tauri::{AppHandle, Emitter};
-use tokio::io::AsyncWriteExt;
+use tokio_util::compat::TokioAsyncReadCompatExt;
+use tokio_util::io::StreamReader;
 
 #[derive(Debug, Clone, Serialize)]
 pub struct InstallProgress {
@@ -12,8 +16,7 @@ pub struct InstallProgress {
     pub downloaded: u64,
     pub total: u64,
     pub percent: f32,
-    pub speed_bps: u64, // bytes per second
-    pub status: String,  // "running" | "done" | "error"
+    pub status: String, // "running" | "done" | "error"
     pub message: String,
 }
 
@@ -32,8 +35,6 @@ pub enum InstallError {
     Http(#[from] reqwest::Error),
     #[error("FTP error: {0}")]
     Ftp(String),
-    #[error("Missing Content-Length header")]
-    MissingContentLength,
     #[error("Bad FTP URL: {0}")]
     BadFtpUrl(String),
 }
@@ -48,31 +49,73 @@ impl Serialize for InstallError {
 }
 
 fn parse_ftp_url(ftp_url: &str) -> Result<(String, u16, String, String, String), InstallError> {
-    let url = url::Url::parse(ftp_url)
-        .map_err(|e| InstallError::BadFtpUrl(e.to_string()))?;
+    let url = url::Url::parse(ftp_url).map_err(|e| InstallError::BadFtpUrl(e.to_string()))?;
     if url.scheme() != "ftp" {
-        return Err(InstallError::BadFtpUrl("Only ftp:// URLs are supported".into()));
+        return Err(InstallError::BadFtpUrl(
+            "Only ftp:// URLs are supported".into(),
+        ));
     }
     let host = url.host_str().unwrap_or("").to_string();
     let port = url.port().unwrap_or(21);
     let user = url.username().to_string();
     let pass = url.password().unwrap_or("").to_string();
-    let path = if url.path().is_empty() { "/".to_string() } else { url.path().to_string() };
+    let path = if url.path().is_empty() {
+        "/".to_string()
+    } else {
+        url.path().to_string()
+    };
     Ok((host, port, user, pass, path))
 }
 
-/// Stream download from server and upload to Switch FTP simultaneously.
-/// Emits "install_progress" events during transfer.
-#[tauri::command]
-pub async fn install_game(
-    app: AppHandle,
-    params: InstallParams,
-) -> Result<(), InstallError> {
-    let event_id = format!("{}:{}", params.game_id, params.file_name);
+// ── Progress-tracking AsyncRead wrapper ──────────────────────────────────────
 
+/// Wraps an inner `futures-io` AsyncRead and counts bytes as they pass through.
+/// Every `report_every` bytes, calls the report callback with total downloaded so far.
+struct ProgressReader<R> {
+    inner: R,
+    counter: Arc<Mutex<u64>>,
+    report_every: u64,
+    since_last: u64,
+    on_progress: Box<dyn Fn(u64) + Send>,
+}
+
+// SAFETY: ProgressReader contains no self-referential data.
+impl<R> Unpin for ProgressReader<R> {}
+
+impl<R: futures_util::AsyncRead + Unpin> futures_util::AsyncRead for ProgressReader<R> {
+    fn poll_read(
+        mut self: Pin<&mut Self>,
+        cx: &mut Context<'_>,
+        buf: &mut [u8],
+    ) -> Poll<std::io::Result<usize>> {
+        let n = match Pin::new(&mut self.inner).poll_read(cx, buf) {
+            Poll::Ready(Ok(n)) => n,
+            other => return other,
+        };
+        if n > 0 {
+            let mut total = self.counter.lock().unwrap();
+            *total += n as u64;
+            let t = *total;
+            drop(total);
+
+            self.since_last += n as u64;
+            if self.since_last >= self.report_every {
+                self.since_last = 0;
+                (self.on_progress)(t);
+            }
+        }
+        Poll::Ready(Ok(n))
+    }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+
+/// Stream download from server and upload to Switch FTP simultaneously.
+/// Emits "install_progress" events to the frontend during transfer.
+#[tauri::command]
+pub async fn install_game(app: AppHandle, params: InstallParams) -> Result<(), InstallError> {
     // Parse FTP URL
-    let (ftp_host, ftp_port, ftp_user, ftp_pass, ftp_dir) =
-        parse_ftp_url(&params.ftp_url)?;
+    let (ftp_host, ftp_port, ftp_user, ftp_pass, ftp_dir) = parse_ftp_url(&params.ftp_url)?;
 
     // Build download URL
     let download_url = format!(
@@ -82,21 +125,17 @@ pub async fn install_game(
         urlencoding::encode(&params.file_name)
     );
 
-    // Issue HTTP request
+    // Issue HTTP request (streaming)
     let http_client = HttpClient::new();
     let response = http_client.get(&download_url).send().await?;
 
     if !response.status().is_success() {
         let msg = format!("Server returned {}", response.status());
-        emit_progress(&app, &event_id, &params.file_name, params.game_id, 0, 0, "error", &msg);
-        return Err(InstallError::Http(
-            response.error_for_status().unwrap_err()
-        ));
+        emit_progress(&app, &params.file_name, params.game_id, 0, 0, "error", &msg);
+        return Err(InstallError::Http(response.error_for_status().unwrap_err()));
     }
 
-    let total = response
-        .content_length()
-        .unwrap_or(0);
+    let total = response.content_length().unwrap_or(0);
 
     // Connect to FTP
     let addr = format!("{}:{}", ftp_host, ftp_port);
@@ -111,73 +150,61 @@ pub async fn install_game(
         .await
         .map_err(|e| InstallError::Ftp(format!("Login failed: {}", e)))?;
 
-    // Navigate to target directory (use ftp_path from params, fallback to URL path)
     let target_dir = if params.ftp_path.is_empty() { &ftp_dir } else { &params.ftp_path };
     ftp.cwd(target_dir)
         .await
         .map_err(|e| InstallError::Ftp(format!("CWD '{}' failed: {}", target_dir, e)))?;
 
-    // Stream: HTTP → FTP via put_with_stream
-    // suppaftp's put_file_with_stream requires writing to an AsyncWrite stream.
-    // We use append_with_stream so partial writes are supported.
-    let mut ftp_stream = ftp
-        .put_with_stream(&params.file_name)
-        .await
-        .map_err(|e| InstallError::Ftp(format!("PUT stream failed: {}", e)))?;
+    emit_progress(&app, &params.file_name, params.game_id, 0, total, "running", "Streaming...");
 
-    let mut byte_stream = response.bytes_stream();
-    let mut downloaded: u64 = 0;
-    let mut last_report = std::time::Instant::now();
-    let mut bytes_since_last = 0u64;
-    let mut speed_bps: u64 = 0;
+    // Convert reqwest bytes stream → tokio AsyncRead → futures-io AsyncRead
+    let bytes_stream = response
+        .bytes_stream()
+        .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e));
+    let tokio_reader = StreamReader::new(bytes_stream);
+    let futures_reader = tokio_reader.compat(); // TokioAsyncReadCompatExt → futures_io::AsyncRead
 
-    emit_progress(&app, &event_id, &params.file_name, params.game_id, 0, total, "running", "Streaming...");
+    // Wrap with progress tracking
+    let counter = Arc::new(Mutex::new(0u64));
+    let app_clone = app.clone();
+    let file_name_clone = params.file_name.clone();
+    let game_id = params.game_id;
+    let report_every: u64 = 512 * 1024; // report every 512 KB
 
-    while let Some(chunk) = byte_stream.next().await {
-        let chunk = chunk?;
-        ftp_stream
-            .write_all(&chunk)
-            .await
-            .map_err(|e| InstallError::Ftp(format!("FTP write error: {}", e)))?;
-
-        downloaded += chunk.len() as u64;
-        bytes_since_last += chunk.len() as u64;
-
-        let elapsed = last_report.elapsed();
-        if elapsed.as_millis() >= 300 {
-            speed_bps = (bytes_since_last as f64 / elapsed.as_secs_f64()) as u64;
-            bytes_since_last = 0;
-            last_report = std::time::Instant::now();
-
+    let progress_reader = ProgressReader {
+        inner: futures_reader,
+        counter: counter.clone(),
+        report_every,
+        since_last: 0,
+        on_progress: Box::new(move |downloaded| {
             emit_progress(
-                &app,
-                &event_id,
-                &params.file_name,
-                params.game_id,
+                &app_clone,
+                &file_name_clone,
+                game_id,
                 downloaded,
                 total,
                 "running",
                 "Streaming...",
             );
-        }
-        let _ = speed_bps; // suppress unused warning
-    }
+        }),
+    };
 
-    // Finalize FTP
-    ftp.finalize_put_stream(ftp_stream)
+    // suppaftp's put_file_with_stream drives reading from our AsyncRead
+    let mut progress_reader = progress_reader;
+    ftp.put_file_with_stream(&params.file_name, &mut progress_reader)
         .await
-        .map_err(|e| InstallError::Ftp(format!("FTP finalize failed: {}", e)))?;
+        .map_err(|e| InstallError::Ftp(format!("FTP upload failed: {}", e)))?;
 
     ftp.quit().await.ok();
 
-    emit_progress(&app, &event_id, &params.file_name, params.game_id, total, total, "done", "Complete");
+    let downloaded = *counter.lock().unwrap();
+    emit_progress(&app, &params.file_name, params.game_id, downloaded, total, "done", "Complete");
 
     Ok(())
 }
 
 fn emit_progress(
     app: &AppHandle,
-    event_id: &str,
     file_name: &str,
     game_id: u32,
     downloaded: u64,
@@ -198,10 +225,8 @@ fn emit_progress(
             downloaded,
             total,
             percent,
-            speed_bps: 0,
             status: status.to_string(),
             message: message.to_string(),
         },
     );
-    let _ = event_id; // used as identifier on frontend
 }
