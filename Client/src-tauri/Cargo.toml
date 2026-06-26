@@ -1,0 +1,28 @@
+[package]
+name = "switch-game-manager"
+version = "0.1.0"
+description = "Switch Game Manager Client"
+authors = ["IMJoyJ"]
+edition = "2021"
+
+[lib]
+name = "switch_game_manager_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+tauri = { version = "2", features = ["protocol-asset"] }
+tauri-plugin-opener = "2"
+tauri-plugin-store = "2"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+reqwest = { version = "0.12", features = ["stream"] }
+tokio = { version = "1", features = ["full"] }
+suppaftp = { version = "6", features = ["async-secure"] }
+futures-util = "0.3"
+bytes = "1"
+thiserror = "2"
+url = "2"
+urlencoding = "2"
