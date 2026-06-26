@@ -305,6 +305,31 @@ func (pr *progressReader) Read(p []byte) (int, error) {
 }
 
 // ─────────────────────────────────────────────
+// API Proxy (bypasses CORS in frontend)
+// ─────────────────────────────────────────────
+
+// ProxyHttpGet requests the server API from the backend to bypass browser CORS
+func (a *App) ProxyHttpGet(targetUrl string) (string, error) {
+	client := &http.Client{Timeout: 10 * time.Second}
+	resp, err := client.Get(targetUrl)
+	if err != nil {
+		return "", err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode >= 400 {
+		return "", fmt.Errorf("server returned status: %s", resp.Status)
+	}
+
+	bodyBytes, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return "", err
+	}
+	return string(bodyBytes), nil
+}
+
+// ─────────────────────────────────────────────
 // Utility (keep compiler happy with strconv import)
 // ─────────────────────────────────────────────
 var _ = strconv.Itoa
+

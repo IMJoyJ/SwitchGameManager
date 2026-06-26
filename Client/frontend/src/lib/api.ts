@@ -55,14 +55,16 @@ export interface InstallRecord {
   updatedAt: string;
 }
 
+import { ProxyHttpGet } from '../wailsjs/go/main/App';
+
 async function apiFetch<T>(serverUrl: string, path: string): Promise<T> {
   const url = `${serverUrl.replace(/\/$/, '')}${path}`;
-  const res = await fetch(url);
-  if (!res.ok) {
-    const body = await res.json().catch(() => ({}));
-    throw new Error(body.error ?? `HTTP ${res.status}`);
+  try {
+    const raw = await ProxyHttpGet(url);
+    return JSON.parse(raw) as T;
+  } catch (err: unknown) {
+    throw new Error(err instanceof Error ? err.message : String(err));
   }
-  return res.json();
 }
 
 export function searchGames(serverUrl: string, q: string, page = 1, limit = 20): Promise<SearchResult> {
